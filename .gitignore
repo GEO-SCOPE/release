@@ -26,3 +26,4 @@ assets/avatars/*
 # OS
 .DS_Store
 Thumbs.db
+*.db

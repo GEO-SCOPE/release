@@ -119,7 +119,7 @@ class ReleaseInfo(BaseModel):
             created_at=release.created_at.isoformat() if release.created_at else None,
             updated_at=release.updated_at.isoformat() if release.updated_at else None,
             builds=[PlatformBuildInfo.model_validate(b) for b in release.builds],
-            changelogs=[ChangelogEntryInfo.model_validate(c) for c in getattr(release, 'changelogs', [])],
+            changelogs=[ChangelogEntryInfo.from_db(c) for c in getattr(release, 'changelogs', [])],
         )
 
 

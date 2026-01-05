@@ -49,6 +49,37 @@ class ChangelogEntryInfo(BaseModel):
     class Config:
         from_attributes = True
 
+    @classmethod
+    def from_db(cls, entry) -> "ChangelogEntryInfo":
+        """
+        Create Pydantic model from database entity.
+
+        Args:
+            entry: SQLAlchemy ChangelogEntry entity
+
+        Returns:
+            ChangelogEntryInfo: Pydantic schema instance
+        """
+        author = None
+        if entry.author:
+            author = ChangelogEntryAuthor(
+                username=entry.author.username,
+                name=entry.author.name,
+                avatar_url=entry.author.avatar_url,
+                github_url=entry.author.github_url,
+            )
+
+        return cls(
+            id=entry.id,
+            type=entry.type,
+            title=entry.title or {},
+            detail=entry.detail or {},
+            issue_url=entry.issue_url,
+            pr_url=entry.pr_url,
+            commit_hash=entry.commit_hash,
+            author=author,
+        )
+
 
 class ChangelogEntryRequest(BaseModel):
     """

@@ -1,0 +1,6 @@
+export { default as SettingsLayout } from './SettingsLayout'
+export { default as SettingsProfile } from './SettingsProfile'
+export { default as SettingsPlan } from './SettingsPlan'
+export { default as SettingsAppearance } from './SettingsAppearance'
+export { default as SettingsPrivacy } from './SettingsPrivacy'
+export { default as SettingsAbout } from './SettingsAbout'

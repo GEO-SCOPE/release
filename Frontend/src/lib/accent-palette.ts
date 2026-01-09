@@ -1,0 +1,60 @@
+export const ACCENT_COLORS = {
+  purple: {
+    name: "Purple",
+    light: "oklch(0.60 0.20 285)",
+    dark: "oklch(0.68 0.22 285)",
+    hover: "oklch(0.56 0.22 285)",
+    hexLight: "#8b5cf6",
+    hexDark: "#a78bfa",
+  },
+  blue: {
+    name: "Blue",
+    light: "oklch(0.60 0.16 230)",
+    dark: "oklch(0.66 0.18 230)",
+    hover: "oklch(0.56 0.18 230)",
+    hexLight: "#3b82f6",
+    hexDark: "#60a5fa",
+  },
+  teal: {
+    name: "Teal",
+    light: "oklch(0.58 0.14 190)",
+    dark: "oklch(0.64 0.16 190)",
+    hover: "oklch(0.54 0.16 190)",
+    hexLight: "#14b8a6",
+    hexDark: "#2dd4bf",
+  },
+  green: {
+    name: "Green",
+    light: "oklch(0.62 0.15 145)",
+    dark: "oklch(0.68 0.17 145)",
+    hover: "oklch(0.58 0.17 145)",
+    hexLight: "#22c55e",
+    hexDark: "#4ade80",
+  },
+  orange: {
+    name: "Orange",
+    light: "oklch(0.68 0.16 50)",
+    dark: "oklch(0.72 0.18 50)",
+    hover: "oklch(0.64 0.18 50)",
+    hexLight: "#f97316",
+    hexDark: "#fb923c",
+  },
+  red: {
+    name: "Red",
+    light: "oklch(0.60 0.20 25)",
+    dark: "oklch(0.66 0.22 25)",
+    hover: "oklch(0.56 0.22 25)",
+    hexLight: "#ef4444",
+    hexDark: "#f87171",
+  },
+  pink: {
+    name: "Pink",
+    light: "oklch(0.62 0.18 350)",
+    dark: "oklch(0.68 0.20 350)",
+    hover: "oklch(0.58 0.20 350)",
+    hexLight: "#ec4899",
+    hexDark: "#f472b6",
+  },
+} as const
+
+export type AccentColorKey = keyof typeof ACCENT_COLORS

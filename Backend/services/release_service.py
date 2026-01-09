@@ -25,11 +25,52 @@ from sqlalchemy import desc
 from sqlalchemy.orm import selectinload
 
 from core.database import session_scope
+from core.config import settings
 from models.entities import Release, Build, ChangelogEntry, Author
 from services.base_service import BaseService
 from utils.version import version_tuple
 
 logger = logging.getLogger(__name__)
+
+
+def scan_packages_for_version(version: str) -> List[Dict]:
+    """
+    扫描文件系统中指定版本的所有安装包。
+
+    Args:
+        version: 版本号，如 "0.22.0"
+
+    Returns:
+        List of build info dicts with target, arch, url, size
+    """
+    builds = []
+    packages_dir = settings.PACKAGES_DIR
+
+    if not packages_dir.exists():
+        return builds
+
+    # 支持的平台和架构
+    platforms = ["darwin", "windows", "linux"]
+    archs = ["x86_64", "aarch64"]
+
+    for target in platforms:
+        for arch in archs:
+            dir_path = packages_dir / target / arch
+            if not dir_path.exists():
+                continue
+
+            # 查找匹配版本的文件
+            for file_path in dir_path.iterdir():
+                if file_path.is_file() and version in file_path.name:
+                    builds.append({
+                        "target": target,
+                        "arch": arch,
+                        "url": f"/api/packages/{target}/{arch}/{file_path.name}",
+                        "size": file_path.stat().st_size,
+                        "filename": file_path.name,
+                    })
+
+    return builds
 
 
 class ReleaseService(BaseService[Release]):
@@ -109,6 +150,24 @@ class ReleaseService(BaseService[Release]):
             )
             latest = sorted_releases[0]
             self._expunge_release(session, latest)
+
+            # 用文件系统扫描的结果替换数据库中的 builds
+            scanned_builds = scan_packages_for_version(latest.version)
+            if scanned_builds:
+                # 创建 Build 对象替换原有的
+                latest.builds = []
+                for build_info in scanned_builds:
+                    build = Build(
+                        release_id=latest.id,
+                        target=build_info["target"],
+                        arch=build_info["arch"],
+                        url=build_info["url"],
+                        size=build_info["size"],
+                        signature="",
+                        download_count=0,
+                    )
+                    latest.builds.append(build)
+
             return latest
 
     def get_by_version(self, version: str) -> Optional[Release]:
@@ -130,6 +189,23 @@ class ReleaseService(BaseService[Release]):
             )
             if release:
                 self._expunge_release(session, release)
+
+                # 用文件系统扫描的结果替换数据库中的 builds
+                scanned_builds = scan_packages_for_version(version)
+                if scanned_builds:
+                    release.builds = []
+                    for build_info in scanned_builds:
+                        build = Build(
+                            release_id=release.id,
+                            target=build_info["target"],
+                            arch=build_info["arch"],
+                            url=build_info["url"],
+                            size=build_info["size"],
+                            signature="",
+                            download_count=0,
+                        )
+                        release.builds.append(build)
+
             return release
 
     def get_all(self, active_only: bool = False) -> List[Release]:
@@ -152,6 +228,23 @@ class ReleaseService(BaseService[Release]):
             releases = query.order_by(desc(Release.created_at)).all()
             for release in releases:
                 self._expunge_release(session, release)
+
+                # 用文件系统扫描的结果替换数据库中的 builds
+                scanned_builds = scan_packages_for_version(release.version)
+                if scanned_builds:
+                    release.builds = []
+                    for build_info in scanned_builds:
+                        build = Build(
+                            release_id=release.id,
+                            target=build_info["target"],
+                            arch=build_info["arch"],
+                            url=build_info["url"],
+                            size=build_info["size"],
+                            signature="",
+                            download_count=0,
+                        )
+                        release.builds.append(build)
+
             return releases
 
     def create(

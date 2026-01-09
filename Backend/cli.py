@@ -367,7 +367,7 @@ def cmd_upload(args):
                 build_data = {
                     "target": args.target,
                     "arch": args.arch,
-                    "url": f"{config['server']}{result['url']}",
+                    "url": result['url'],  # 只存储相对路径，前端自己拼接服务器地址
                     "signature": signature,
                     "size": file_size,
                     "sha256": sha256,

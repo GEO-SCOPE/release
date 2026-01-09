@@ -169,14 +169,15 @@ app.include_router(summary_router)
 # Static File Hosting
 # =============================================================================
 
-# Package download directory (/packages/{target}/{arch}/{filename})
-app.mount("/packages", StaticFiles(directory=str(settings.PACKAGES_DIR)), name="packages")
+# Package download directory (/api/packages/{target}/{arch}/{filename})
+# Note: Must be under /api/ to go through the reverse proxy to backend
+app.mount("/api/packages", StaticFiles(directory=str(settings.PACKAGES_DIR)), name="packages")
 
-# Static assets directory (/assets/avatars/{filename})
-app.mount("/assets", StaticFiles(directory=str(settings.ASSETS_DIR)), name="assets")
+# Static assets directory (/api/assets/avatars/{filename})
+app.mount("/api/assets", StaticFiles(directory=str(settings.ASSETS_DIR)), name="assets")
 
-# Upload files directory (/uploads/{filename})
-app.mount("/uploads", StaticFiles(directory=str(settings.UPLOADS_DIR)), name="uploads")
+# Upload files directory (/api/uploads/{filename})
+app.mount("/api/uploads", StaticFiles(directory=str(settings.UPLOADS_DIR)), name="uploads")
 
 
 # =============================================================================

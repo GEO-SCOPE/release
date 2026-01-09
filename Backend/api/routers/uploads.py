@@ -132,8 +132,8 @@ async def upload_package(
         logger.error(f"Failed to write file: {e}")
         raise HTTPException(status_code=500, detail="Failed to save file")
 
-    # Build download URL (relative to server root)
-    download_url = f"/packages/{target}/{arch}/{filename}"
+    # Build download URL (relative to server root, under /api for reverse proxy)
+    download_url = f"/api/packages/{target}/{arch}/{filename}"
 
     return JSONResponse({
         "success": True,
@@ -226,7 +226,7 @@ async def list_packages(target: str, arch: str) -> dict:
                 "name": file_path.name,
                 "size": stat.st_size,
                 "modified": stat.st_mtime,
-                "url": f"/packages/{target}/{arch}/{file_path.name}",
+                "url": f"/api/packages/{target}/{arch}/{file_path.name}",
             })
 
     return {"files": sorted(files, key=lambda x: x["modified"], reverse=True)}
@@ -300,7 +300,7 @@ async def upload_avatar(
         logger.error(f"Failed to save avatar: {e}")
         raise HTTPException(status_code=500, detail="Failed to save file")
 
-    # Return access URL
+    # Return access URL (frontend adds /api via RELEASE_DIRECTORY)
     avatar_url = f"/assets/avatars/{unique_filename}"
 
     return JSONResponse({

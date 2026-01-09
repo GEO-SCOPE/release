@@ -48,10 +48,10 @@ const BACKEND_DIRS: Record<AppMode, string> = {
 export const BACKEND_DIRECTORY = BACKEND_DIRS[APP_MODE]
 
 // Release server directory path (for static resources like avatars)
-// 同理，test/release 模式需要 /api 前缀
+// 所有模式都需要 /api 前缀，因为后端静态文件挂载在 /api/assets, /api/uploads 等路径下
 const RELEASE_DIRS: Record<AppMode, string> = {
   mock: '',
-  develop: '',  // 本地开发直接访问 Release 服务器，不需要前缀
+  develop: '/api',  // 后端挂载在 /api/assets, /api/uploads
   test: import.meta.env.RELEASE_DIRECTORY || '/api',
   release: import.meta.env.RELEASE_DIRECTORY || '/api',
 }

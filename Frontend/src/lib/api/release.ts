@@ -54,6 +54,39 @@ interface ReleaseServerLatest {
   }>
 }
 
+// Build 信息
+export interface BuildInfo {
+  id: string
+  target: string    // darwin, windows, linux
+  arch: string      // x86_64, aarch64
+  url: string       // 下载 URL
+  signature: string
+  size: number | null
+  sha256: string | null
+  download_count: number
+}
+
+// 完整的 Release 信息（包含 builds）
+export interface ReleaseWithBuilds {
+  id: string
+  version: string
+  pub_date: string | null
+  notes: Record<string, string>
+  detail: Record<string, string>
+  is_active: boolean
+  is_critical: boolean
+  is_prerelease: boolean
+  min_version: string | null
+  download_count: number
+  builds: BuildInfo[]
+  author?: {
+    username: string
+    name: string
+    avatar_url: string | null
+    github_url: string | null
+  } | null
+}
+
 /**
  * 获取多语言内容（带回退）
  */
@@ -217,6 +250,44 @@ export const releaseApi = {
       console.warn('Failed to fetch latest version:', error)
       return null
     }
+  },
+
+  /**
+   * 获取最新版本（包含完整的 builds 信息）
+   */
+  getLatestRelease: async (): Promise<ReleaseWithBuilds | null> => {
+    if (shouldUseMockData() || !RELEASE_SERVER_URL) {
+      return null
+    }
+
+    try {
+      const response = await fetch(`${RELEASE_SERVER_URL}/api/releases/latest`)
+
+      if (!response.ok) {
+        return null
+      }
+
+      const data = await response.json()
+      return data.release as ReleaseWithBuilds
+    } catch (error) {
+      console.warn('Failed to fetch latest release:', error)
+      return null
+    }
+  },
+
+  /**
+   * 获取指定平台的下载 URL
+   */
+  getDownloadUrl: (release: ReleaseWithBuilds, target: string, arch: string): string | null => {
+    const build = release.builds.find(b => b.target === target && b.arch === arch)
+    if (!build) return null
+
+    // 如果 URL 是相对路径，拼接服务器地址
+    // 后端返回的 URL 格式: /api/packages/{target}/{arch}/{filename}
+    if (build.url.startsWith('/')) {
+      return `${RELEASE_SERVER_URL}${build.url}`
+    }
+    return build.url
   },
 
   /**

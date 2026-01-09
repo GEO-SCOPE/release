@@ -4,6 +4,7 @@ import { ThemeProvider } from '@/lib/theme-context'
 
 // Download Page
 import ReleasePage from '@/pages/ReleasePage'
+import ChangelogPage from '@/pages/ChangelogPage'
 
 // =============================================================================
 // 注意：这是一个独立的下载页面项目
@@ -33,9 +34,12 @@ export default function App() {
     <ThemeProvider>
       <BrowserRouter>
         <Routes>
-          {/* Download Page - 唯一路由 */}
+          {/* Download Page */}
           <Route path="/" element={<ReleasePage />} />
           <Route path="/download" element={<ReleasePage />} />
+
+          {/* Changelog Page */}
+          <Route path="/changelog" element={<ChangelogPage />} />
 
           {/* Catch-all redirect */}
           <Route path="*" element={<Navigate to="/" replace />} />

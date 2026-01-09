@@ -3,12 +3,14 @@
  * 参考 Google Antigravity 下载页风格
  */
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { Download, Moon, Sun } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useTheme } from "@/lib/theme-context"
 import MetallicPaint, { parseLogoImage } from "@/components/reactbits/MetallicPaint"
 import GlassSurface from "@/components/reactbits/GlassSurface"
+import TextType from "@/components/reactbits/typetext"
+import { releaseApi, type ReleaseWithBuilds } from "@/lib/api/release"
 
 // Platform icons - 更大尺寸用于卡片
 const PlatformIcon = ({ platform, className }: { platform: string; className?: string }) => {
@@ -31,32 +33,38 @@ const PlatformIcon = ({ platform, className }: { platform: string; className?: s
   return icons[platform] || null
 }
 
-// 下载链接配置
-const DOWNLOADS = {
+// 平台配置
+const PLATFORM_CONFIG = {
   macos: {
     name: "macOS",
-    options: [
-      { label: "Download for Apple Silicon", arch: "arm64", url: "#" },
-      { label: "Download for Intel", arch: "x64", url: "#" },
-    ],
+    target: "darwin",
     requirements: "macOS 12 (Monterey) or later. Apple Silicon recommended.",
+    archLabels: {
+      aarch64: "Download for Apple Silicon",
+      x86_64: "Download for Intel",
+    },
   },
   windows: {
     name: "Windows",
-    options: [
-      { label: "Download for x64", arch: "x64", url: "#" },
-      { label: "Download for ARM64", arch: "arm64", url: "#" },
-    ],
+    target: "windows",
     requirements: "Windows 10 (64 bit) or later.",
+    archLabels: {
+      x86_64: "Download for x64",
+      aarch64: "Download for ARM64",
+    },
   },
   linux: {
     name: "Linux",
-    options: [
-      { label: "Download", arch: "x64", url: "#" },
-    ],
+    target: "linux",
     requirements: "glibc >= 2.28 (e.g. Ubuntu 20, Debian 10, Fedora 36).",
+    archLabels: {
+      x86_64: "Download for x64",
+      aarch64: "Download for ARM64",
+    },
   },
-}
+} as const
+
+type PlatformKey = keyof typeof PLATFORM_CONFIG
 
 // 检测用户平台
 const detectPlatform = (): "macos" | "windows" | "linux" => {
@@ -68,8 +76,10 @@ const detectPlatform = (): "macos" | "windows" | "linux" => {
 }
 
 export default function ReleasePage() {
-  const [currentPlatform, setCurrentPlatform] = useState<"macos" | "windows" | "linux">("macos")
+  const [currentPlatform, setCurrentPlatform] = useState<PlatformKey>("macos")
   const [logoImageData, setLogoImageData] = useState<ImageData | null>(null)
+  const [latestRelease, setLatestRelease] = useState<ReleaseWithBuilds | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
   const { theme, setTheme } = useTheme()
 
   useEffect(() => {
@@ -88,9 +98,50 @@ export default function ReleasePage() {
       }
     }
     loadLogo()
+
+    // 获取最新版本信息
+    const fetchLatestRelease = async () => {
+      try {
+        const release = await releaseApi.getLatestRelease()
+        setLatestRelease(release)
+      } catch (error) {
+        console.error("Failed to fetch latest release:", error)
+      } finally {
+        setIsLoading(false)
+      }
+    }
+    fetchLatestRelease()
   }, [])
 
-  const handleDownload = (url: string) => window.open(url, "_blank")
+  // 根据平台获取可用的下载选项
+  const getDownloadOptions = useMemo(() => {
+    return (platform: PlatformKey) => {
+      const config = PLATFORM_CONFIG[platform]
+      if (!latestRelease) return []
+
+      return latestRelease.builds
+        .filter(build => build.target === config.target)
+        .map(build => ({
+          label: config.archLabels[build.arch as keyof typeof config.archLabels] || `Download for ${build.arch}`,
+          arch: build.arch,
+          url: releaseApi.getDownloadUrl(latestRelease, build.target, build.arch) || "#",
+        }))
+    }
+  }, [latestRelease])
+
+  const handleDownload = (url: string) => {
+    if (url && url !== "#") {
+      window.location.href = url
+    }
+  }
+
+  // 获取当前平台的首选下载 URL
+  const getPrimaryDownloadUrl = (platform: PlatformKey): string => {
+    const options = getDownloadOptions(platform)
+    // 优先选择 aarch64 (Apple Silicon / ARM)
+    const preferred = options.find(o => o.arch === "aarch64") || options[0]
+    return preferred?.url || "#"
+  }
 
   const toggleTheme = () => {
     setTheme(theme === "dark" ? "light" : "dark")
@@ -116,9 +167,9 @@ export default function ReleasePage() {
           </div>
           <nav className="hidden md:flex items-center gap-2 text-sm">
             {[
-              { label: "Product", href: "#", active: true },
+              { label: "Product", href: "/", active: true },
+              { label: "Changelog", href: "/changelog", active: false },
               { label: "Docs", href: "#", active: false },
-              { label: "Blog", href: "#", active: false },
             ].map((item) => (
               item.active ? (
                 theme === "dark" ? (
@@ -154,11 +205,9 @@ export default function ReleasePage() {
                       `
                     }}
                   >
-                    <div className="p-2 flex items-center justify-center">
-                      <a href={item.href} className="text-zinc-900 font-medium">
-                        {item.label}
-                      </a>
-                    </div>
+                    <a href={item.href} className="text-zinc-900 font-medium">
+                      {item.label}
+                    </a>
                   </div>
                 )
               ) : (
@@ -183,8 +232,9 @@ export default function ReleasePage() {
             </button>
             {/* Download Button */}
             <button
-              onClick={() => handleDownload(DOWNLOADS[currentPlatform].options[0].url)}
-              className="flex items-center gap-2 px-4 py-2 bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 text-sm font-medium rounded-full hover:bg-zinc-800 dark:hover:bg-zinc-200 transition-colors"
+              onClick={() => handleDownload(getPrimaryDownloadUrl(currentPlatform))}
+              disabled={isLoading || !latestRelease}
+              className="flex items-center gap-2 px-4 py-2 bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 text-sm font-medium rounded-full hover:bg-zinc-800 dark:hover:bg-zinc-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Download
               <Download className="h-4 w-4" />
@@ -219,21 +269,30 @@ export default function ReleasePage() {
           </div>
 
           {/* Title */}
-          <h1 className="text-4xl md:text-5xl font-medium text-zinc-900 dark:text-zinc-100 tracking-tight mb-6">
-            Download GEO-SCOPE
-          </h1>
+          <TextType
+            text="Download GEO-SCOPE"
+            as="h1"
+            className="text-4xl md:text-5xl font-medium text-zinc-900 dark:text-zinc-100 mb-6"
+            typingSpeed={80}
+            loop={false}
+            showCursor={true}
+            hideCursorOnComplete={true}
+            cursorCharacter="|"
+            cursorClassName="text-zinc-900 dark:text-zinc-100"
+          />
 
           {/* Platform + Download Button */}
           <div className="flex items-center justify-center gap-4">
             <span className="text-2xl md:text-3xl text-zinc-400 dark:text-zinc-500">
-              for {DOWNLOADS[currentPlatform].name}
+              for {PLATFORM_CONFIG[currentPlatform].name}
             </span>
             <button
-              onClick={() => handleDownload(DOWNLOADS[currentPlatform].options[0].url)}
-              className="flex items-center gap-2 px-5 py-2.5 bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 text-base font-medium rounded-full hover:bg-zinc-800 dark:hover:bg-zinc-200 transition-colors"
+              onClick={() => handleDownload(getPrimaryDownloadUrl(currentPlatform))}
+              disabled={isLoading || !latestRelease}
+              className="flex items-center gap-2 px-5 py-2.5 bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 text-base font-medium rounded-full hover:bg-zinc-800 dark:hover:bg-zinc-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <Download className="h-5 w-5" />
-              Download
+              {isLoading ? "Loading..." : latestRelease ? `Download v${latestRelease.version}` : "Download"}
             </button>
           </div>
         </div>
@@ -242,8 +301,10 @@ export default function ReleasePage() {
         <div className="max-w-5xl mx-auto w-full">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {(["macos", "windows", "linux"] as const).map((platform) => {
-              const data = DOWNLOADS[platform]
+              const config = PLATFORM_CONFIG[platform]
+              const options = getDownloadOptions(platform)
               const isActive = platform === currentPlatform
+              const hasBuilds = options.length > 0
 
               const cardContent = (
                 <div className="flex flex-col w-full">
@@ -254,24 +315,30 @@ export default function ReleasePage() {
 
                   {/* Platform Name */}
                   <h3 className="text-lg font-medium text-zinc-900 dark:text-zinc-100 mb-4">
-                    {data.name}
+                    {config.name}
                   </h3>
 
                   {/* Download Links */}
                   <div className="space-y-2">
-                    {data.options.map((option, i) => (
-                      <button
-                        key={i}
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          handleDownload(option.url)
-                        }}
-                        className="w-full flex items-center justify-between py-2 px-3 -mx-3 rounded-lg text-sm text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100/50 dark:hover:bg-zinc-800/50 transition-colors group"
-                      >
-                        <span>{option.label}</span>
-                        <Download className="h-4 w-4 text-zinc-400 dark:text-zinc-500 group-hover:text-zinc-600 dark:group-hover:text-zinc-300" />
-                      </button>
-                    ))}
+                    {isLoading ? (
+                      <div className="text-sm text-zinc-400 dark:text-zinc-500">Loading...</div>
+                    ) : hasBuilds ? (
+                      options.map((option, i) => (
+                        <button
+                          key={i}
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            handleDownload(option.url)
+                          }}
+                          className="w-full flex items-center justify-between py-2 px-3 -mx-3 rounded-lg text-sm text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100/50 dark:hover:bg-zinc-800/50 transition-colors group"
+                        >
+                          <span>{option.label}</span>
+                          <Download className="h-4 w-4 text-zinc-400 dark:text-zinc-500 group-hover:text-zinc-600 dark:group-hover:text-zinc-300" />
+                        </button>
+                      ))
+                    ) : (
+                      <div className="text-sm text-zinc-400 dark:text-zinc-500">Coming soon</div>
+                    )}
                   </div>
                 </div>
               )
@@ -289,7 +356,7 @@ export default function ReleasePage() {
                     blur={12}
                     backgroundOpacity={theme === "dark" ? 0.03 : 0.5}
                     isDark={theme === "dark"}
-                    className="p-6 cursor-pointer"
+                    className="p-6 cursor-pointer ring-2 ring-primary"
                     onClick={() => setCurrentPlatform(platform)}
                   >
                     {cardContent}
@@ -317,7 +384,7 @@ export default function ReleasePage() {
                   Minimum Requirements
                 </h4>
                 <p className="text-zinc-500 dark:text-zinc-500 text-xs leading-relaxed">
-                  {DOWNLOADS[platform].requirements}
+                  {PLATFORM_CONFIG[platform].requirements}
                 </p>
               </div>
             ))}

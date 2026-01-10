@@ -6,6 +6,34 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="GEO-SCOPE is an AI-powered observatory that tracks how generative engines surface and rank information. Measures visibility, bias, and ranking shifts across platforms." />
     <title>GEO-SCOPE - AI Observatory Platform</title>
+    <!-- Prevent FOUC: Apply theme before React hydration -->
+    <script>
+      (function() {
+        const THEME_KEY = 'geo-scope-theme';
+        const stored = localStorage.getItem(THEME_KEY);
+        let theme = 'light';
+
+        if (stored === 'dark') {
+          theme = 'dark';
+        } else if (stored === 'system' || !stored) {
+          theme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+        } else if (stored === 'light') {
+          theme = 'light';
+        }
+
+        document.documentElement.classList.add(theme);
+        document.documentElement.style.colorScheme = theme;
+      })();
+    </script>
+    <style>
+      /* Prevent flash during initial load */
+      html {
+        background-color: #fafafa;
+      }
+      html.dark {
+        background-color: #09090b;
+      }
+    </style>
   </head>
   <body>
     <div id="root"></div>

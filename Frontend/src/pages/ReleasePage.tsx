@@ -4,13 +4,20 @@
  */
 
 import { useState, useEffect, useMemo } from "react"
-import { Download, Moon, Sun } from "lucide-react"
+import { Download, Moon, Sun, CheckCircle2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useTheme } from "@/lib/theme-context"
 import MetallicPaint, { parseLogoImage } from "@/components/reactbits/MetallicPaint"
 import GlassSurface from "@/components/reactbits/GlassSurface"
 import TextType from "@/components/reactbits/typetext"
 import { releaseApi, type ReleaseWithBuilds } from "@/lib/api/release"
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog"
 
 // Platform icons - 更大尺寸用于卡片
 const PlatformIcon = ({ platform, className }: { platform: string; className?: string }) => {
@@ -75,16 +82,24 @@ const detectPlatform = (): "macos" | "windows" | "linux" => {
   return "linux"
 }
 
+// 下载信息类型
+interface DownloadInfo {
+  filename: string
+  url: string
+  platform: string
+}
+
 export default function ReleasePage() {
-  const [currentPlatform, setCurrentPlatform] = useState<PlatformKey>("macos")
+  // 使用惰性初始化直接检测平台，避免初次渲染后的状态变化导致闪烁
+  const [currentPlatform, setCurrentPlatform] = useState<PlatformKey>(() => detectPlatform())
   const [logoImageData, setLogoImageData] = useState<ImageData | null>(null)
   const [latestRelease, setLatestRelease] = useState<ReleaseWithBuilds | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const [downloadDialogOpen, setDownloadDialogOpen] = useState(false)
+  const [currentDownload, setCurrentDownload] = useState<DownloadInfo | null>(null)
   const { theme, setTheme } = useTheme()
 
   useEffect(() => {
-    setCurrentPlatform(detectPlatform())
-
     // 加载 Logo for MetallicPaint
     const loadLogo = async () => {
       try {
@@ -121,26 +136,40 @@ export default function ReleasePage() {
 
       return latestRelease.builds
         .filter(build => build.target === config.target)
-        .map(build => ({
-          label: config.archLabels[build.arch as keyof typeof config.archLabels] || `Download for ${build.arch}`,
-          arch: build.arch,
-          url: releaseApi.getDownloadUrl(latestRelease, build.target, build.arch) || "#",
-        }))
+        .map(build => {
+          const url = releaseApi.getDownloadUrl(latestRelease, build.target, build.arch) || "#"
+          // 从 URL 中提取文件名
+          const filename = build.url.split('/').pop() || ''
+          return {
+            label: config.archLabels[build.arch as keyof typeof config.archLabels] || `Download for ${build.arch}`,
+            arch: build.arch,
+            url,
+            filename,
+          }
+        })
     }
   }, [latestRelease])
 
-  const handleDownload = (url: string) => {
+  const handleDownload = (url: string, filename?: string, platform?: string) => {
     if (url && url !== "#") {
+      // 设置下载信息并显示弹窗
+      setCurrentDownload({
+        filename: filename || url.split('/').pop() || 'file',
+        url,
+        platform: platform || PLATFORM_CONFIG[currentPlatform].name,
+      })
+      setDownloadDialogOpen(true)
+      // 触发下载
       window.location.href = url
     }
   }
 
-  // 获取当前平台的首选下载 URL
-  const getPrimaryDownloadUrl = (platform: PlatformKey): string => {
+  // 获取当前平台的首选下载信息
+  const getPrimaryDownload = (platform: PlatformKey) => {
     const options = getDownloadOptions(platform)
     // 优先选择 aarch64 (Apple Silicon / ARM)
     const preferred = options.find(o => o.arch === "aarch64") || options[0]
-    return preferred?.url || "#"
+    return preferred || null
   }
 
   const toggleTheme = () => {
@@ -232,7 +261,10 @@ export default function ReleasePage() {
             </button>
             {/* Download Button */}
             <button
-              onClick={() => handleDownload(getPrimaryDownloadUrl(currentPlatform))}
+              onClick={() => {
+                const download = getPrimaryDownload(currentPlatform)
+                if (download) handleDownload(download.url, download.filename, PLATFORM_CONFIG[currentPlatform].name)
+              }}
               disabled={isLoading || !latestRelease}
               className="flex items-center gap-2 px-4 py-2 bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 text-sm font-medium rounded-full hover:bg-zinc-800 dark:hover:bg-zinc-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
@@ -244,28 +276,35 @@ export default function ReleasePage() {
       </header>
 
       {/* Main Content - 填充剩余空间 */}
-      <main className="flex-1 flex flex-col justify-center px-6 py-12">
+      <main className="flex-1 flex flex-col justify-center px-6 py-12 animate-in fade-in duration-300">
         {/* Hero */}
         <div className="max-w-4xl mx-auto text-center mb-12">
-          {/* Logo - MetallicPaint */}
-          <div className="w-20 h-20 mx-auto mb-8">
-            {logoImageData ? (
-              <MetallicPaint
-                imageData={logoImageData}
-                params={{ patternScale: 2, refraction: 0.015, edge: 1, patternBlur: 0.005, liquid: 0.07, speed: 0.3 }}
-              />
-            ) : (
-              <img
-                src="/logo.png"
-                alt="GEO-SCOPE"
-                className="w-full h-full"
-                style={{
-                  filter: theme === "dark"
-                    ? "brightness(0) invert(0.75) sepia(0.1) saturate(0.5)"
-                    : "brightness(0)"
-                }}
-              />
-            )}
+          {/* Logo - MetallicPaint with fade transition */}
+          <div className="w-20 h-20 mx-auto mb-8 relative">
+            {/* Fallback static logo - fades out when MetallicPaint is ready */}
+            <img
+              src="/logo.png"
+              alt="GEO-SCOPE"
+              className="w-full h-full absolute inset-0 transition-opacity duration-500"
+              style={{
+                filter: theme === "dark"
+                  ? "brightness(0) invert(0.75) sepia(0.1) saturate(0.5)"
+                  : "brightness(0)",
+                opacity: logoImageData ? 0 : 1,
+              }}
+            />
+            {/* MetallicPaint - fades in when ready */}
+            <div
+              className="w-full h-full transition-opacity duration-500"
+              style={{ opacity: logoImageData ? 1 : 0 }}
+            >
+              {logoImageData && (
+                <MetallicPaint
+                  imageData={logoImageData}
+                  params={{ patternScale: 2, refraction: 0.015, edge: 1, patternBlur: 0.005, liquid: 0.07, speed: 0.3 }}
+                />
+              )}
+            </div>
           </div>
 
           {/* Title */}
@@ -287,12 +326,17 @@ export default function ReleasePage() {
               for {PLATFORM_CONFIG[currentPlatform].name}
             </span>
             <button
-              onClick={() => handleDownload(getPrimaryDownloadUrl(currentPlatform))}
+              onClick={() => {
+                const download = getPrimaryDownload(currentPlatform)
+                if (download) handleDownload(download.url, download.filename, PLATFORM_CONFIG[currentPlatform].name)
+              }}
               disabled={isLoading || !latestRelease}
-              className="flex items-center gap-2 px-5 py-2.5 bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 text-base font-medium rounded-full hover:bg-zinc-800 dark:hover:bg-zinc-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex items-center justify-center gap-2 px-5 py-2.5 min-w-[180px] bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 text-base font-medium rounded-full hover:bg-zinc-800 dark:hover:bg-zinc-200 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              <Download className="h-5 w-5" />
-              {isLoading ? "Loading..." : latestRelease ? `Download v${latestRelease.version}` : "Download"}
+              <Download className="h-5 w-5 flex-shrink-0" />
+              <span className="transition-opacity duration-200">
+                {isLoading ? "Loading..." : latestRelease ? `Download v${latestRelease.version}` : "Download"}
+              </span>
             </button>
           </div>
         </div>
@@ -328,12 +372,15 @@ export default function ReleasePage() {
                           key={i}
                           onClick={(e) => {
                             e.stopPropagation()
-                            handleDownload(option.url)
+                            handleDownload(option.url, option.filename, config.name)
                           }}
                           className="w-full flex items-center justify-between py-2 px-3 -mx-3 rounded-lg text-sm text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100/50 dark:hover:bg-zinc-800/50 transition-colors group"
                         >
-                          <span>{option.label}</span>
-                          <Download className="h-4 w-4 text-zinc-400 dark:text-zinc-500 group-hover:text-zinc-600 dark:group-hover:text-zinc-300" />
+                          <span className="truncate">
+                            <span className="group-hover:hidden">{option.label}</span>
+                            <span className="hidden group-hover:inline" title={option.filename}>{option.filename}</span>
+                          </span>
+                          <Download className="h-4 w-4 flex-shrink-0 ml-2 text-zinc-400 dark:text-zinc-500 group-hover:text-zinc-600 dark:group-hover:text-zinc-300" />
                         </button>
                       ))
                     ) : (
@@ -403,6 +450,58 @@ export default function ReleasePage() {
           </div>
         </div>
       </footer>
+
+      {/* Download Started Dialog */}
+      <Dialog open={downloadDialogOpen} onOpenChange={setDownloadDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <div className="flex items-center gap-3 mb-2">
+              <div className="w-10 h-10 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
+                <CheckCircle2 className="h-5 w-5 text-green-600 dark:text-green-400" />
+              </div>
+              <DialogTitle className="text-xl">Download Started</DialogTitle>
+            </div>
+            <DialogDescription className="text-left">
+              Thank you for downloading GEO-SCOPE for {currentDownload?.platform}.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 pt-2">
+            {/* File info */}
+            <div className="rounded-lg bg-zinc-100 dark:bg-zinc-800 p-3">
+              <div className="text-xs text-zinc-500 dark:text-zinc-400 mb-1">File</div>
+              <div className="text-sm font-mono text-zinc-700 dark:text-zinc-300 break-all">
+                {currentDownload?.filename}
+              </div>
+            </div>
+
+            {/* Manual download link */}
+            <div className="text-sm text-zinc-600 dark:text-zinc-400">
+              If your download didn't start automatically,{" "}
+              <a
+                href={currentDownload?.url}
+                className="text-primary hover:underline font-medium"
+                onClick={() => setDownloadDialogOpen(false)}
+              >
+                click here to download
+              </a>.
+            </div>
+
+            {/* Installation hint */}
+            <div className="text-xs text-zinc-500 dark:text-zinc-500 border-t border-zinc-200 dark:border-zinc-700 pt-3">
+              {currentDownload?.platform === "macOS" && (
+                <>Open the .dmg file and drag GEO-SCOPE to your Applications folder.</>
+              )}
+              {currentDownload?.platform === "Windows" && (
+                <>Run the installer and follow the on-screen instructions.</>
+              )}
+              {currentDownload?.platform === "Linux" && (
+                <>Extract the archive and run the executable, or use your package manager.</>
+              )}
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

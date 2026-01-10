@@ -9,7 +9,6 @@ import { cn } from "@/lib/utils"
 import { useTheme } from "@/lib/theme-context"
 import MetallicPaint, { parseLogoImage } from "@/components/reactbits/MetallicPaint"
 import GlassSurface from "@/components/reactbits/GlassSurface"
-import TextType from "@/components/reactbits/typetext"
 import { releaseApi } from "@/lib/api/release"
 import type { Changelog, ChangelogRelease } from "@/api/types"
 import { RELEASE_SERVER_URL, RELEASE_DIRECTORY } from "@/config"
@@ -29,7 +28,10 @@ export default function ChangelogPage() {
   const [changelog, setChangelog] = useState<Changelog | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [expandedVersion, setExpandedVersion] = useState<string | null>(null)
+  const [showAll, setShowAll] = useState(false)
   const [locale] = useState<"en" | "zh">("en")
+
+  const DEFAULT_SHOW_COUNT = 5
   const { theme, setTheme } = useTheme()
 
   useEffect(() => {
@@ -207,17 +209,9 @@ export default function ChangelogPage() {
           </div>
 
           {/* Title */}
-          <TextType
-            text="Changelog"
-            as="h1"
-            className="text-4xl md:text-5xl font-medium text-zinc-900 dark:text-zinc-100 mb-4"
-            typingSpeed={80}
-            loop={false}
-            showCursor={true}
-            hideCursorOnComplete={true}
-            cursorCharacter="|"
-            cursorClassName="text-zinc-900 dark:text-zinc-100"
-          />
+          <h1 className="text-4xl md:text-5xl font-medium text-zinc-900 dark:text-zinc-100 mb-4">
+            Changelog
+          </h1>
 
           <p className="text-lg text-zinc-500 dark:text-zinc-400">
             New updates and improvements to GEO-SCOPE
@@ -236,7 +230,7 @@ export default function ChangelogPage() {
               <div className="absolute left-[7px] top-2 bottom-2 w-[2px] bg-zinc-200 dark:bg-zinc-800" />
 
               <div className="space-y-8">
-                {changelog?.releases.map((release, releaseIdx) => {
+                {(showAll ? changelog?.releases : changelog?.releases.slice(0, DEFAULT_SHOW_COUNT))?.map((release, releaseIdx) => {
                   const isExpanded = expandedVersion === release.version
                   const authors = getAuthors(release)
                   const versionDisplay = release.version.split('.').slice(0, 2).join('.')
@@ -343,6 +337,18 @@ export default function ChangelogPage() {
                   )
                 })}
               </div>
+
+              {/* Show All Button */}
+              {!showAll && changelog && changelog.releases.length > DEFAULT_SHOW_COUNT && (
+                <div className="relative pl-8 pt-4">
+                  <button
+                    onClick={() => setShowAll(true)}
+                    className="text-sm text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 transition-colors"
+                  >
+                    Show all {changelog.releases.length} releases
+                  </button>
+                </div>
+              )}
             </div>
           )}
         </div>

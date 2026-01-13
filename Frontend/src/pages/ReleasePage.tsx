@@ -4,12 +4,17 @@
  */
 
 import { useState, useEffect, useMemo } from "react"
+import { Link, useLocation } from "react-router-dom"
 import { Download, Moon, Sun, CheckCircle2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useTheme } from "@/lib/theme-context"
-import MetallicPaint, { parseLogoImage } from "@/components/reactbits/MetallicPaint"
+import { useLogo } from "@/lib/logo-context"
+import { useI18n } from "@/lib/i18n"
+import MetallicPaint from "@/components/reactbits/MetallicPaint"
 import GlassSurface from "@/components/reactbits/GlassSurface"
 import TextType from "@/components/reactbits/typetext"
+import { LanguageSwitcher } from "@/components/LanguageSwitcher"
+import { MobileMenu } from "@/components/MobileMenu"
 import { releaseApi, type ReleaseWithBuilds } from "@/lib/api/release"
 import {
   Dialog,
@@ -92,28 +97,16 @@ interface DownloadInfo {
 export default function ReleasePage() {
   // 使用惰性初始化直接检测平台，避免初次渲染后的状态变化导致闪烁
   const [currentPlatform, setCurrentPlatform] = useState<PlatformKey>(() => detectPlatform())
-  const [logoImageData, setLogoImageData] = useState<ImageData | null>(null)
   const [latestRelease, setLatestRelease] = useState<ReleaseWithBuilds | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [downloadDialogOpen, setDownloadDialogOpen] = useState(false)
   const [currentDownload, setCurrentDownload] = useState<DownloadInfo | null>(null)
   const { theme, setTheme } = useTheme()
+  const { logoImageData } = useLogo() // 使用缓存的 logo
+  const { t } = useI18n()
+  const location = useLocation()
 
   useEffect(() => {
-    // 加载 Logo for MetallicPaint
-    const loadLogo = async () => {
-      try {
-        const response = await fetch("/logo.png")
-        const blob = await response.blob()
-        const file = new File([blob], "logo.png", { type: "image/png" })
-        const result = await parseLogoImage(file)
-        setLogoImageData(result.imageData)
-      } catch (error) {
-        console.error("Failed to load logo:", error)
-      }
-    }
-    loadLogo()
-
     // 获取最新版本信息
     const fetchLatestRelease = async () => {
       try {
@@ -177,11 +170,11 @@ export default function ReleasePage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50 dark:from-zinc-950 dark:via-zinc-950 dark:to-zinc-950 flex flex-col">
+    <div className="min-h-screen flex flex-col relative">
       {/* 导航栏 */}
-      <header className="px-6 py-4 border-b border-zinc-200/50 dark:border-zinc-800 backdrop-blur-sm bg-white/70 dark:bg-zinc-950/70">
+      <header className="relative z-10 px-6 py-4 border-b border-zinc-200/50 dark:border-zinc-800 backdrop-blur-sm bg-white/70 dark:bg-zinc-950/70">
         <div className="max-w-6xl mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-3">
+          <Link to="/" className="flex items-center gap-3">
             <img
               src="/logo.png"
               alt="GEO-SCOPE"
@@ -193,17 +186,19 @@ export default function ReleasePage() {
               }}
             />
             <span className="font-semibold text-lg text-zinc-500 dark:text-zinc-100">GEO-SCOPE</span>
-          </div>
+          </Link>
           <nav className="hidden md:flex items-center gap-2 text-sm">
             {[
-              { label: "Product", href: "/", active: true },
-              { label: "Changelog", href: "/changelog", active: false },
-              { label: "Docs", href: "#", active: false },
-            ].map((item) => (
-              item.active ? (
+              { labelKey: "nav.product", href: "/" },
+              { labelKey: "nav.changelog", href: "/changelog" },
+              { labelKey: "nav.docs", href: "#" },
+            ].map((item) => {
+              const isActive = location.pathname === item.href || (item.href === "/" && location.pathname === "/download")
+
+              return isActive ? (
                 theme === "dark" ? (
                   <GlassSurface
-                    key={item.label}
+                    key={item.labelKey}
                     width="auto"
                     height="auto"
                     borderRadius={16}
@@ -213,16 +208,18 @@ export default function ReleasePage() {
                     blur={12}
                     backgroundOpacity={0.03}
                     isDark={true}
-                    className="px-4 py-1.5"
+                    className="px-4 py-1.5 relative overflow-hidden group"
                   >
-                    <a href={item.href} className="text-zinc-100 font-medium">
-                      {item.label}
-                    </a>
+                    <Link to={item.href} className="text-zinc-100 font-medium relative z-10">
+                      {t(item.labelKey)}
+                    </Link>
+                    {/* 水滴动画背景 */}
+                    <div className="absolute inset-0 bg-gradient-to-r from-primary/20 via-primary/30 to-primary/20 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
                   </GlassSurface>
                 ) : (
                   <div
-                    key={item.label}
-                    className="rounded-2xl bg-white/50 backdrop-blur-xl px-4 py-1.5"
+                    key={item.labelKey}
+                    className="rounded-2xl bg-white/50 backdrop-blur-xl px-4 py-1.5 relative overflow-hidden group"
                     style={{
                       border: '1px solid rgba(255, 255, 255, 0.6)',
                       boxShadow: `
@@ -234,23 +231,32 @@ export default function ReleasePage() {
                       `
                     }}
                   >
-                    <a href={item.href} className="text-zinc-900 font-medium">
-                      {item.label}
-                    </a>
+                    <Link to={item.href} className="text-zinc-900 font-medium relative z-10">
+                      {t(item.labelKey)}
+                    </Link>
+                    {/* 水滴动画背景 */}
+                    <div className="absolute inset-0 bg-gradient-to-r from-primary/10 via-primary/20 to-primary/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
                   </div>
                 )
               ) : (
-                <a
-                  key={item.label}
-                  href={item.href}
-                  className="px-4 py-1.5 text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors"
+                <Link
+                  key={item.labelKey}
+                  to={item.href}
+                  className="px-4 py-1.5 text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors relative group"
                 >
-                  {item.label}
-                </a>
+                  {t(item.labelKey)}
+                  {/* 悬停水滴效果 */}
+                  <div className="absolute inset-0 rounded-lg bg-zinc-100 dark:bg-zinc-800 opacity-0 group-hover:opacity-100 transition-opacity duration-200 -z-10" />
+                </Link>
               )
-            ))}
+            })}
           </nav>
           <div className="flex items-center gap-3">
+            {/* Language Switcher - Desktop */}
+            <div className="hidden md:block">
+              <LanguageSwitcher />
+            </div>
+
             {/* Theme Toggle */}
             <button
               onClick={toggleTheme}
@@ -259,18 +265,22 @@ export default function ReleasePage() {
             >
               {theme === "dark" ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
             </button>
-            {/* Download Button */}
+
+            {/* Download Button - Hidden on small screens */}
             <button
               onClick={() => {
                 const download = getPrimaryDownload(currentPlatform)
                 if (download) handleDownload(download.url, download.filename, PLATFORM_CONFIG[currentPlatform].name)
               }}
               disabled={isLoading || !latestRelease}
-              className="flex items-center gap-2 px-4 py-2 bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 text-sm font-medium rounded-full hover:bg-zinc-800 dark:hover:bg-zinc-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="hidden sm:flex items-center gap-2 px-4 py-2 bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 text-sm font-medium rounded-full hover:bg-zinc-800 dark:hover:bg-zinc-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              Download
+              {t('nav.download')}
               <Download className="h-4 w-4" />
             </button>
+
+            {/* Mobile Menu */}
+            <MobileMenu onThemeToggle={toggleTheme} theme={theme} />
           </div>
         </div>
       </header>
@@ -309,7 +319,7 @@ export default function ReleasePage() {
 
           {/* Title */}
           <TextType
-            text="Download GEO-SCOPE"
+            text={t('download.title')}
             as="h1"
             className="text-4xl md:text-5xl font-medium text-zinc-900 dark:text-zinc-100 mb-6"
             typingSpeed={80}
@@ -323,7 +333,7 @@ export default function ReleasePage() {
           {/* Platform + Download Button */}
           <div className="flex items-center justify-center gap-4">
             <span className="text-2xl md:text-3xl text-zinc-400 dark:text-zinc-500">
-              for {PLATFORM_CONFIG[currentPlatform].name}
+              {t('download.for')} {t(`platform.${currentPlatform}`)}
             </span>
             <button
               onClick={() => {
@@ -335,7 +345,7 @@ export default function ReleasePage() {
             >
               <Download className="h-5 w-5 flex-shrink-0" />
               <span className="transition-opacity duration-200">
-                {isLoading ? "Loading..." : latestRelease ? `Download v${latestRelease.version}` : "Download"}
+                {isLoading ? t('common.loading') : latestRelease ? t('download.version', { version: latestRelease.version }) : t('download.button')}
               </span>
             </button>
           </div>
@@ -359,13 +369,13 @@ export default function ReleasePage() {
 
                   {/* Platform Name */}
                   <h3 className="text-lg font-medium text-zinc-900 dark:text-zinc-100 mb-4">
-                    {config.name}
+                    {t(`platform.${platform}`)}
                   </h3>
 
                   {/* Download Links */}
                   <div className="space-y-2">
                     {isLoading ? (
-                      <div className="text-sm text-zinc-400 dark:text-zinc-500">Loading...</div>
+                      <div className="text-sm text-zinc-400 dark:text-zinc-500">{t('common.loading')}</div>
                     ) : hasBuilds ? (
                       options.map((option, i) => (
                         <button
@@ -377,14 +387,14 @@ export default function ReleasePage() {
                           className="w-full flex items-center justify-between py-2 px-3 -mx-3 rounded-lg text-sm text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100/50 dark:hover:bg-zinc-800/50 transition-colors group"
                         >
                           <span className="truncate">
-                            <span className="group-hover:hidden">{option.label}</span>
+                            <span className="group-hover:hidden">{t(`platform.${platform}.${option.arch}`)}</span>
                             <span className="hidden group-hover:inline" title={option.filename}>{option.filename}</span>
                           </span>
                           <Download className="h-4 w-4 flex-shrink-0 ml-2 text-zinc-400 dark:text-zinc-500 group-hover:text-zinc-600 dark:group-hover:text-zinc-300" />
                         </button>
                       ))
                     ) : (
-                      <div className="text-sm text-zinc-400 dark:text-zinc-500">Coming soon</div>
+                      <div className="text-sm text-zinc-400 dark:text-zinc-500">{t('common.comingSoon')}</div>
                     )}
                   </div>
                 </div>
@@ -428,10 +438,10 @@ export default function ReleasePage() {
             {(["macos", "windows", "linux"] as const).map((platform) => (
               <div key={platform} className="text-sm">
                 <h4 className="font-medium text-zinc-700 dark:text-zinc-300 mb-1">
-                  Minimum Requirements
+                  {t('download.requirements')}
                 </h4>
                 <p className="text-zinc-500 dark:text-zinc-500 text-xs leading-relaxed">
-                  {PLATFORM_CONFIG[platform].requirements}
+                  {t(`platform.${platform}.requirements`)}
                 </p>
               </div>
             ))}
@@ -442,11 +452,11 @@ export default function ReleasePage() {
       {/* Footer */}
       <footer className="px-6 py-8 border-t border-zinc-100 dark:border-zinc-800">
         <div className="max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4 text-sm text-zinc-500">
-          <span>&copy; 2026 GEO-SCOPE</span>
+          <span>{t('footer.copyright')}</span>
           <div className="flex items-center gap-6">
-            <a href="#" className="hover:text-zinc-700 dark:hover:text-zinc-300 transition-colors">Privacy</a>
-            <a href="#" className="hover:text-zinc-700 dark:hover:text-zinc-300 transition-colors">Terms</a>
-            <a href="#" className="hover:text-zinc-700 dark:hover:text-zinc-300 transition-colors">GitHub</a>
+            <a href="#" className="hover:text-zinc-700 dark:hover:text-zinc-300 transition-colors">{t('footer.privacy')}</a>
+            <a href="#" className="hover:text-zinc-700 dark:hover:text-zinc-300 transition-colors">{t('footer.terms')}</a>
+            <a href="#" className="hover:text-zinc-700 dark:hover:text-zinc-300 transition-colors">{t('footer.github')}</a>
           </div>
         </div>
       </footer>
@@ -459,17 +469,17 @@ export default function ReleasePage() {
               <div className="w-10 h-10 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
                 <CheckCircle2 className="h-5 w-5 text-green-600 dark:text-green-400" />
               </div>
-              <DialogTitle className="text-xl">Download Started</DialogTitle>
+              <DialogTitle className="text-xl">{t('dialog.downloadStarted')}</DialogTitle>
             </div>
             <DialogDescription className="text-left">
-              Thank you for downloading GEO-SCOPE for {currentDownload?.platform}.
+              {t('dialog.thankYou', { platform: currentDownload?.platform })}
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4 pt-2">
             {/* File info */}
             <div className="rounded-lg bg-zinc-100 dark:bg-zinc-800 p-3">
-              <div className="text-xs text-zinc-500 dark:text-zinc-400 mb-1">File</div>
+              <div className="text-xs text-zinc-500 dark:text-zinc-400 mb-1">{t('dialog.file')}</div>
               <div className="text-sm font-mono text-zinc-700 dark:text-zinc-300 break-all">
                 {currentDownload?.filename}
               </div>
@@ -477,27 +487,21 @@ export default function ReleasePage() {
 
             {/* Manual download link */}
             <div className="text-sm text-zinc-600 dark:text-zinc-400">
-              If your download didn't start automatically,{" "}
+              {t('dialog.manualDownload')}{" "}
               <a
                 href={currentDownload?.url}
                 className="text-primary hover:underline font-medium"
                 onClick={() => setDownloadDialogOpen(false)}
               >
-                click here to download
+                {t('dialog.clickHere')}
               </a>.
             </div>
 
             {/* Installation hint */}
             <div className="text-xs text-zinc-500 dark:text-zinc-500 border-t border-zinc-200 dark:border-zinc-700 pt-3">
-              {currentDownload?.platform === "macOS" && (
-                <>Open the .dmg file and drag GEO-SCOPE to your Applications folder.</>
-              )}
-              {currentDownload?.platform === "Windows" && (
-                <>Run the installer and follow the on-screen instructions.</>
-              )}
-              {currentDownload?.platform === "Linux" && (
-                <>Extract the archive and run the executable, or use your package manager.</>
-              )}
+              {currentDownload?.platform === "macOS" && t('dialog.installHint.macos')}
+              {currentDownload?.platform === "Windows" && t('dialog.installHint.windows')}
+              {currentDownload?.platform === "Linux" && t('dialog.installHint.linux')}
             </div>
           </div>
         </DialogContent>

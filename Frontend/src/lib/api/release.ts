@@ -208,14 +208,19 @@ export const releaseApi = {
   /**
    * 获取更新日志 (从 Release 服务器)
    */
-  getChangelog: async (limit: number = 50): Promise<Changelog> => {
+  getChangelog: async (limit: number = 50, locale?: string): Promise<Changelog> => {
     // Mock 模式返回默认数据
     if (shouldUseMockData() || !RELEASE_SERVER_URL) {
       return DEFAULT_CHANGELOG
     }
 
     try {
-      const response = await fetch(`${RELEASE_SERVER_URL}/api/update/changelog?limit=${limit}`)
+      const params = new URLSearchParams({ limit: limit.toString() })
+      if (locale) {
+        params.append('locale', locale)
+      }
+
+      const response = await fetch(`${RELEASE_SERVER_URL}/api/update/changelog?${params}`)
 
       if (!response.ok) {
         console.warn('Failed to fetch changelog from release server')

@@ -4,55 +4,48 @@
  */
 
 import { useState, useEffect } from "react"
+import { Link, useLocation } from "react-router-dom"
 import { Moon, Sun, ChevronDown, User, Download } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useTheme } from "@/lib/theme-context"
-import MetallicPaint, { parseLogoImage } from "@/components/reactbits/MetallicPaint"
+import { useLogo } from "@/lib/logo-context"
+import { useI18n } from "@/lib/i18n"
+import MetallicPaint from "@/components/reactbits/MetallicPaint"
 import GlassSurface from "@/components/reactbits/GlassSurface"
+import { LanguageSwitcher } from "@/components/LanguageSwitcher"
+import { MobileMenu } from "@/components/MobileMenu"
 import { releaseApi } from "@/lib/api/release"
 import type { Changelog, ChangelogRelease } from "@/api/types"
 import { RELEASE_SERVER_URL, RELEASE_DIRECTORY } from "@/config"
 
 // 类型标签配置
-const TYPE_CONFIG: Record<string, { label: string; color: string }> = {
-  feature: { label: "New", color: "bg-emerald-500" },
-  improve: { label: "Improved", color: "bg-blue-500" },
-  fix: { label: "Fixed", color: "bg-amber-500" },
-  breaking: { label: "Breaking", color: "bg-red-500" },
-  security: { label: "Security", color: "bg-purple-500" },
-  deprecated: { label: "Deprecated", color: "bg-zinc-500" },
+const TYPE_CONFIG: Record<string, { labelKey: string; color: string }> = {
+  feature: { labelKey: "changelog.type.new", color: "bg-emerald-500" },
+  improve: { labelKey: "changelog.type.improved", color: "bg-blue-500" },
+  fix: { labelKey: "changelog.type.fixed", color: "bg-amber-500" },
+  breaking: { labelKey: "changelog.type.breaking", color: "bg-red-500" },
+  security: { labelKey: "changelog.type.security", color: "bg-purple-500" },
+  deprecated: { labelKey: "changelog.type.deprecated", color: "bg-zinc-500" },
 }
 
 export default function ChangelogPage() {
-  const [logoImageData, setLogoImageData] = useState<ImageData | null>(null)
   const [changelog, setChangelog] = useState<Changelog | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [expandedVersion, setExpandedVersion] = useState<string | null>(null)
   const [showAll, setShowAll] = useState(false)
-  const [locale] = useState<"en" | "zh">("en")
 
   const DEFAULT_SHOW_COUNT = 5
   const { theme, setTheme } = useTheme()
+  const { logoImageData } = useLogo() // 使用缓存的 logo
+  const { t, locale } = useI18n()
+  const location = useLocation()
 
   useEffect(() => {
-    // 加载 Logo for MetallicPaint
-    const loadLogo = async () => {
-      try {
-        const response = await fetch("/logo.png")
-        const blob = await response.blob()
-        const file = new File([blob], "logo.png", { type: "image/png" })
-        const result = await parseLogoImage(file)
-        setLogoImageData(result.imageData)
-      } catch (error) {
-        console.error("Failed to load logo:", error)
-      }
-    }
-    loadLogo()
-
     // 获取更新日志
     const fetchChangelog = async () => {
+      setIsLoading(true)
       try {
-        const data = await releaseApi.getChangelog(50)
+        const data = await releaseApi.getChangelog(50, locale)
         setChangelog(data)
         // 默认展开第一个版本
         if (data.releases.length > 0) {
@@ -65,7 +58,7 @@ export default function ChangelogPage() {
       }
     }
     fetchChangelog()
-  }, [])
+  }, [locale])
 
   const toggleTheme = () => {
     setTheme(theme === "dark" ? "light" : "dark")
@@ -90,11 +83,11 @@ export default function ChangelogPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50 dark:from-zinc-950 dark:via-zinc-950 dark:to-zinc-950 flex flex-col">
+    <div className="min-h-screen flex flex-col relative">
       {/* 导航栏 */}
-      <header className="px-6 py-4 border-b border-zinc-200/50 dark:border-zinc-800 backdrop-blur-sm bg-white/70 dark:bg-zinc-950/70">
+      <header className="relative z-10 px-6 py-4 border-b border-zinc-200/50 dark:border-zinc-800 backdrop-blur-sm bg-white/70 dark:bg-zinc-950/70">
         <div className="max-w-6xl mx-auto flex items-center justify-between">
-          <a href="/" className="flex items-center gap-3">
+          <Link to="/" className="flex items-center gap-3">
             <img
               src="/logo.png"
               alt="GEO-SCOPE"
@@ -106,14 +99,16 @@ export default function ChangelogPage() {
               }}
             />
             <span className="font-semibold text-lg text-zinc-500 dark:text-zinc-100">GEO-SCOPE</span>
-          </a>
+          </Link>
           <nav className="hidden md:flex items-center gap-2 text-sm">
             {[
-              { label: "Product", href: "/", active: false },
-              { label: "Changelog", href: "/changelog", active: true },
-              { label: "Docs", href: "#", active: false },
-            ].map((item) => (
-              item.active ? (
+              { label: "Product", href: "/" },
+              { label: "Changelog", href: "/changelog" },
+              { label: "Docs", href: "#" },
+            ].map((item) => {
+              const isActive = location.pathname === item.href || (item.href === "/" && location.pathname === "/download")
+
+              return isActive ? (
                 theme === "dark" ? (
                   <GlassSurface
                     key={item.label}
@@ -126,16 +121,18 @@ export default function ChangelogPage() {
                     blur={12}
                     backgroundOpacity={0.03}
                     isDark={true}
-                    className="px-4 py-1.5"
+                    className="px-4 py-1.5 relative overflow-hidden group"
                   >
-                    <a href={item.href} className="text-zinc-100 font-medium">
+                    <Link to={item.href} className="text-zinc-100 font-medium relative z-10">
                       {item.label}
-                    </a>
+                    </Link>
+                    {/* 水滴动画背景 */}
+                    <div className="absolute inset-0 bg-gradient-to-r from-primary/20 via-primary/30 to-primary/20 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
                   </GlassSurface>
                 ) : (
                   <div
                     key={item.label}
-                    className="rounded-2xl bg-white/50 backdrop-blur-xl px-4 py-1.5"
+                    className="rounded-2xl bg-white/50 backdrop-blur-xl px-4 py-1.5 relative overflow-hidden group"
                     style={{
                       border: '1px solid rgba(255, 255, 255, 0.6)',
                       boxShadow: `
@@ -147,23 +144,33 @@ export default function ChangelogPage() {
                       `
                     }}
                   >
-                    <a href={item.href} className="text-zinc-900 font-medium">
+                    <Link to={item.href} className="text-zinc-900 font-medium relative z-10">
                       {item.label}
-                    </a>
+                    </Link>
+                    {/* 水滴动画背景 */}
+                    <div className="absolute inset-0 bg-gradient-to-r from-primary/10 via-primary/20 to-primary/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
                   </div>
                 )
               ) : (
-                <a
+                <Link
                   key={item.label}
-                  href={item.href}
-                  className="px-4 py-1.5 text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors"
+                  to={item.href}
+                  className="px-4 py-1.5 text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors relative group"
                 >
                   {item.label}
-                </a>
+                  {/* 悬停水滴效果 */}
+                  <div className="absolute inset-0 rounded-lg bg-zinc-100 dark:bg-zinc-800 opacity-0 group-hover:opacity-100 transition-opacity duration-200 -z-10" />
+                </Link>
               )
-            ))}
+            })}
           </nav>
           <div className="flex items-center gap-3">
+            {/* Language Switcher - Desktop */}
+            <div className="hidden md:block">
+              <LanguageSwitcher />
+            </div>
+
+            {/* Theme Toggle */}
             <button
               onClick={toggleTheme}
               className="p-2 rounded-full text-zinc-500 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
@@ -171,14 +178,18 @@ export default function ChangelogPage() {
             >
               {theme === "dark" ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
             </button>
-            {/* Download Button */}
-            <a
-              href="/"
-              className="flex items-center gap-2 px-4 py-2 bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 text-sm font-medium rounded-full hover:bg-zinc-800 dark:hover:bg-zinc-200 transition-colors"
+
+            {/* Download Button - Hidden on small screens */}
+            <Link
+              to="/"
+              className="hidden sm:flex items-center gap-2 px-4 py-2 bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 text-sm font-medium rounded-full hover:bg-zinc-800 dark:hover:bg-zinc-200 transition-colors"
             >
-              Download
+              {t('nav.download')}
               <Download className="h-4 w-4" />
-            </a>
+            </Link>
+
+            {/* Mobile Menu */}
+            <MobileMenu onThemeToggle={toggleTheme} theme={theme} />
           </div>
         </div>
       </header>
@@ -210,20 +221,20 @@ export default function ChangelogPage() {
 
           {/* Title */}
           <h1 className="text-4xl md:text-5xl font-medium text-zinc-900 dark:text-zinc-100 mb-4">
-            Changelog
+            {t('changelog.title')}
           </h1>
 
           <p className="text-lg text-zinc-500 dark:text-zinc-400">
-            New updates and improvements to GEO-SCOPE
+            {t('changelog.subtitle')}
           </p>
         </div>
 
         {/* Changelog List */}
         <div className="max-w-2xl mx-auto">
           {isLoading ? (
-            <div className="text-center py-12 text-zinc-500">Loading...</div>
+            <div className="text-center py-12 text-zinc-500">{t('common.loading')}</div>
           ) : changelog?.releases.length === 0 ? (
-            <div className="text-center py-12 text-zinc-500">No releases yet</div>
+            <div className="text-center py-12 text-zinc-500">{t('changelog.noReleases')}</div>
           ) : (
             <div className="relative">
               {/* Timeline line */}
@@ -262,7 +273,7 @@ export default function ChangelogPage() {
                               {authors.slice(0, 3).map((author) => (
                                 <div
                                   key={author!.username}
-                                  className="h-6 w-6 rounded-full border-2 border-white dark:border-zinc-950 bg-zinc-200 dark:bg-zinc-800 overflow-hidden"
+                                  className="h-6 w-6 rounded-full border-2 border-white dark:border-zinc-950 bg-zinc-200 dark:bg-zinc-800 overflow-hidden flex items-center justify-center"
                                   title={author!.name}
                                 >
                                   {author!.avatar_url ? (
@@ -270,12 +281,14 @@ export default function ChangelogPage() {
                                       src={`${RELEASE_SERVER_URL}${RELEASE_DIRECTORY}${author!.avatar_url}`}
                                       alt={author!.name}
                                       className="w-full h-full object-cover"
+                                      onError={(e) => {
+                                        // 图片加载失败时隐藏图片，显示默认图标
+                                        e.currentTarget.style.display = 'none'
+                                      }}
                                     />
-                                  ) : (
-                                    <div className="w-full h-full flex items-center justify-center">
-                                      <User className="h-3 w-3 text-zinc-400" />
-                                    </div>
-                                  )}
+                                  ) : null}
+                                  {/* 默认图标 - 始终渲染，但图片加载成功时会被覆盖 */}
+                                  <User className="h-3 w-3 text-zinc-400 absolute" />
                                 </div>
                               ))}
                             </div>
@@ -290,7 +303,7 @@ export default function ChangelogPage() {
                         {!isExpanded && release.changes.length > 0 && (
                           <p className="text-sm text-zinc-500 dark:text-zinc-400 line-clamp-1">
                             {locale === "zh" ? release.changes[0]?.text_zh : release.changes[0]?.text_en}
-                            {release.changes.length > 1 && ` and ${release.changes.length - 1} more updates`}
+                            {release.changes.length > 1 && ` ${t('changelog.moreUpdates', { count: release.changes.length - 1 })}`}
                           </p>
                         )}
                       </div>
@@ -321,7 +334,7 @@ export default function ChangelogPage() {
                                 <div className="flex-1 min-w-0">
                                   <div className="flex items-center gap-2">
                                     <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wide">
-                                      {typeConfig.label}
+                                      {t(typeConfig.labelKey)}
                                     </span>
                                   </div>
                                   <p className="text-sm text-zinc-700 dark:text-zinc-300 mt-0.5">
@@ -345,7 +358,7 @@ export default function ChangelogPage() {
                     onClick={() => setShowAll(true)}
                     className="text-sm text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 transition-colors"
                   >
-                    Show all {changelog.releases.length} releases
+                    {t('changelog.showAll', { count: changelog.releases.length })}
                   </button>
                 </div>
               )}
@@ -357,11 +370,11 @@ export default function ChangelogPage() {
       {/* Footer */}
       <footer className="px-6 py-8 border-t border-zinc-100 dark:border-zinc-800">
         <div className="max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4 text-sm text-zinc-500">
-          <span>&copy; 2026 GEO-SCOPE</span>
+          <span>{t('footer.copyright')}</span>
           <div className="flex items-center gap-6">
-            <a href="#" className="hover:text-zinc-700 dark:hover:text-zinc-300 transition-colors">Privacy</a>
-            <a href="#" className="hover:text-zinc-700 dark:hover:text-zinc-300 transition-colors">Terms</a>
-            <a href="#" className="hover:text-zinc-700 dark:hover:text-zinc-300 transition-colors">GitHub</a>
+            <a href="#" className="hover:text-zinc-700 dark:hover:text-zinc-300 transition-colors">{t('footer.privacy')}</a>
+            <a href="#" className="hover:text-zinc-700 dark:hover:text-zinc-300 transition-colors">{t('footer.terms')}</a>
+            <a href="#" className="hover:text-zinc-700 dark:hover:text-zinc-300 transition-colors">{t('footer.github')}</a>
           </div>
         </div>
       </footer>

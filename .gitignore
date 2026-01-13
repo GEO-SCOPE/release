@@ -28,6 +28,7 @@ assets/avatars/*
 Thumbs.db
 *.db
 node_modules/
+.vite/
 dist/
 build/
 .next/
